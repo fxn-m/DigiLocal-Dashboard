@@ -16,7 +16,8 @@ wdir = os.getcwd()
 data = wdir + '/datasets/devdata.csv'
 
 df = pd.read_csv(data)
-geojson = wdir + '/datasets/LSOA-2011-GeoJSON/lsoa.geojson'
+#geojson = wdir + '/datasets/LSOA-2011-GeoJSON/E_lsoa.geojson'
+geojson = wdir + '/datasets/LSOA-2011-GeoJSON/dev_data.geojson'
 with open(geojson) as lsoa_file:
     geojson = json.load(lsoa_file)
 styles = ['open-street-map', 'white-bg', 'carto-positron', 
@@ -27,7 +28,7 @@ app.layout = html.Div([
     id='mbstyle',
     options=[{'value': x, 'label': x}
              for x in styles],
-    value='carto-positron'
+    value='open-street-map'
     ),
 
     dcc.Graph(id="choropleth", style={'height': '75vh'}),
@@ -54,7 +55,8 @@ def display_choropleth(mbstyle, slider_value):
         dff, geojson=geojson, color='IDACI Decile', color_continuous_scale="Viridis",
         locations="LSOA code", featureidkey="properties.LSOA11CD",
         hover_name='Local Authority District name',
-        center={"lat": 53, "lon": -4.5}, zoom=5,
+        #center={"lat": 53, "lon": -4.5}, zoom=5,
+        center={"lat": 51.47, "lon": -2.61}, zoom=11,
         range_color=[0, 10], opacity=.5)
     fig.update_geos(fitbounds="locations", visible=False)
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0},
