@@ -16,7 +16,7 @@ wdir = os.getcwd()
 data = wdir + '/datasets/devdata.csv'
 
 df = pd.read_csv(data)
-#geojson = wdir + '/datasets/LSOA-2011-GeoJSON/E_lsoa.geojson'
+#geojson = wdir + '/datasets/LSOA-2011-GeoJSON/lsoa.geojson'
 geojson = wdir + '/datasets/LSOA-2011-GeoJSON/dev_data.geojson'
 with open(geojson) as lsoa_file:
     geojson = json.load(lsoa_file)
@@ -54,7 +54,7 @@ def display_choropleth(mbstyle, slider_value):
     fig = px.choropleth_mapbox(
         dff, geojson=geojson, color='IDACI Decile', color_continuous_scale="Viridis",
         locations="LSOA code", featureidkey="properties.LSOA11CD",
-        hover_name='Local Authority District name',
+        hover_name='Local Authority',
         #center={"lat": 53, "lon": -4.5}, zoom=5,
         center={"lat": 51.47, "lon": -2.61}, zoom=11,
         range_color=[0, 10], opacity=.5)
