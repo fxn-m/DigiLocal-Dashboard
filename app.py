@@ -23,6 +23,10 @@ with open(geojson) as lsoa_file:
 styles = ['open-street-map', 'white-bg', 'carto-positron', 
 'carto-darkmatter', 'stamen- terrain', 'stamen-toner', 'stamen-watercolor']
 
+bris = ['Bristol', [51.47, -2.61]]
+ldn = ['London', [51.514, -0.1225]]
+cities_df = pd.DataFrame(data=[bris, ldn], columns=['city', 'coords'])
+
 app.layout = html.Div([
     dcc.Dropdown(
     id='mbstyle',
@@ -31,10 +35,18 @@ app.layout = html.Div([
     value='open-street-map'
     ),
 
+    dcc.Dropdown(
+    id='city',
+    options=[{'value': 'Bristol', 'label': 'Bristol'},
+    {'value': 'London', 'label': 'London'}],
+    value='Bristol'
+    ),
+
     dcc.Graph(id="choropleth", style={'height': '75vh'}),
 
     html.Br(),
-    html.P('Filter for Income Deprivation Affecting Children Index (IDACI) Decile (where 1 is most deprived 10% of LSOAs)'),
+
+    html.P('IDACI Decile Filter'),
     dcc.RangeSlider(id='rangeslider',
         min=1,
         max=10,
@@ -47,16 +59,18 @@ app.layout = html.Div([
 @app.callback(
     Output("choropleth", "figure"),
     Input("mbstyle", "value"),
-    Input("rangeslider", "value")
+    Input("rangeslider", "value"),
+    Input("city", "value")
     )
-def display_choropleth(mbstyle, slider_value):
+def display_choropleth(mbstyle, slider_value, city):
     dff = df[df['IDACI Decile'].between(slider_value[0], slider_value[1])]
     fig = px.choropleth_mapbox(
         dff, geojson=geojson, color='IDACI Decile', color_continuous_scale="Viridis",
         locations="LSOA code", featureidkey="properties.LSOA11CD",
         hover_name='Local Authority',
         #center={"lat": 53, "lon": -4.5}, zoom=5,
-        center={"lat": 51.47, "lon": -2.61}, zoom=11,
+        center={"lat": list(cities_df[cities_df.city == city].coords)[0][0], 
+        "lon": list(cities_df[cities_df.city == city].coords)[0][1]}, zoom=11,
         range_color=[0, 10], opacity=.5)
     fig.update_geos(fitbounds="locations", visible=False)
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0},
