@@ -20,40 +20,49 @@ df = pd.read_csv(data)
 geojson = wdir + '/datasets/LSOA-2011-GeoJSON/dev_data.geojson'
 with open(geojson) as lsoa_file:
     geojson = json.load(lsoa_file)
-styles = ['open-street-map', 'white-bg', 'carto-positron', 
-'carto-darkmatter', 'stamen- terrain', 'stamen-toner', 'stamen-watercolor']
+styles = ['open-street-map','carto-positron']
 
 bris = ['Bristol', [51.47, -2.61]]
 ldn = ['London', [51.514, -0.1225]]
 cities_df = pd.DataFrame(data=[bris, ldn], columns=['city', 'coords'])
 
 app.layout = html.Div([
-    dcc.Dropdown(
-    id='mbstyle',
-    options=[{'value': x, 'label': x}
-             for x in styles],
-    value='open-street-map'
-    ),
 
-    dcc.Dropdown(
-    id='city',
-    options=[{'value': 'Bristol', 'label': 'Bristol'},
-    {'value': 'London', 'label': 'London'}],
-    value='Bristol'
-    ),
+    html.Div([
 
-    dcc.Graph(id="choropleth", style={'height': '75vh'}),
+        html.Br(),
+        dcc.Dropdown(
+            id='city',
+            options=[{'value': 'Bristol', 'label': 'Bristol'},
+            {'value': 'London', 'label': 'London'}],
+            value='Bristol',
+            clearable=True,
+            placeholder="Search by Town, City, or Postcode"
+            ),
 
-    html.Br(),
+        html.Br(),
+        dcc.Graph(id="choropleth", style={'height': '75vh'}),
 
-    html.P('IDACI Decile Filter'),
-    dcc.RangeSlider(id='rangeslider',
-        min=1,
-        max=10,
-        step=1,
-        marks={i: 'Decilie {}'.format(i) for i in range(1, 11)},
-        value=[1, 10]
-        )
+        html.Div([
+        dcc.RadioItems(
+            id='mbstyle',
+            options=[{'value': x, 'label': x}
+            for x in styles],
+            value='open-street-map')],
+        style={"width": "50%"}),
+
+
+        html.Br(),
+        html.P('IDACI Decile Filter'),
+        dcc.RangeSlider(id='rangeslider',
+            min=1,
+            max=10,
+            step=1,
+            marks={i: 'Decilie {}'.format(i) for i in range(1, 11)},
+            value=[1, 10]
+            )
+        ],
+        style={"width":"65%"})    
 ])
 
 @app.callback(
