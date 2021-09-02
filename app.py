@@ -9,7 +9,9 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 from dash.exceptions import PreventUpdate
 import pgeocode
-from math import radians, cos, sin, asin, sqrt
+
+from functions import haversine
+from functions import setcolour
 
 # import data to be used in this app (see data_cleaning_and_preparation.ipynb)
 wdir = os.getcwd()
@@ -23,6 +25,7 @@ for i, r in cities_df.iterrows():
     city = r.city
     options.append({'value':city, 'label':city})
 
+#import geojson data
 #geojson = wdir + '/datasets/LSOA-2011-GeoJSON/lsoa.geojson' #LSOA boundary geometry
 geojson = wdir + '/datasets/LSOA-2011-GeoJSON/dev_data.geojson' #sample dataset for development
 
@@ -34,36 +37,15 @@ styles = ['open-street-map','carto-positron'] #mapbox options
 nomi = pgeocode.Nominatim('GB') #short-hand for post-code library requests
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css'] #use the css stylesheet from the Dash Tutorial
 
-def haversine(lon1, lat1, lon2, lat2):
-    # convert decimal degrees to radians 
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    # haversine formula 
-    dlon = lon2 - lon1 
-    dlat = lat2 - lat1 
-    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a)) 
-    # Radius of earth in kilometers is 6371
-    m = 6371* c *1000
-    return m
 
-def setcolour(x):
-    if (x < 4) or (x == 8):
-        return "#90EE90" #LightGreen
-    elif x == 5 or x == 6 or x == 9:
-        return "#FFA07A" #LightSalmon
-    elif x == 4 or x == 7 or x == 10:
-        return "#F08080" #LightCoral
-
-# begin app instance
+# initialise app instance
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 
-app.layout = html.Div([
-
-    html.Div(
-        [
-            # search field
-            html.Br(),
+app.layout = html.Div(
+    [
+        html.H1('DigiLocal Dashboard'),
+        html.Div([
             html.Div(
                 [
                     dcc.Dropdown(
@@ -71,79 +53,118 @@ app.layout = html.Div([
                         options=[{'value': x, 'label': x}
                         for x in df['Local Authority'].unique()],
                         value='Bristol, City of',
-                        clearable=False),
+                        clearable=False,
+                        style={"width":"97%"}
+                    )
+                ],
+                style={#"width":"49%",
+                "margin-top":27,
+                "margin-bottom":4}
+            ),
 
+            html.Div(
+                [
                     dcc.Input(
-                        style={'width': 300},
                         id='search',
                         placeholder="Search by Postcode, Town, or City",
                         debounce=True,
                         type='search',
-                        value=''
+                        value='',
+                        style={"width":400}
                     )
                 ]
-            ),
-            
-            html.Div(
-                [
-                    html.P('IDACI Decile Filter'),
-                    dcc.RangeSlider(
-                        id='idacislider',
-                        min=1,
-                        max=10,
-                        step=1,
-                        marks={i: '{}'.format(i) for i in range(1, 11)},
-                        value=[1, 10]),
-                    html.P('IUC Code Filter'),
-                    dcc.RangeSlider(
-                        id='iucslider',
-                        min=1,
-                        max=10,
-                        step=1,
-                        marks={i: '{}'.format(i) for i in range(1, 11)},
-                        value=[1, 10]),
-                ],
-                style={"width": "50%"}        
-            ),
-    
-            dcc.RadioItems(
-                id='chorofilter',
-                options=[
-                    {'value':'IDACI Decile', 'label':'IDACI'},
-                    {'value':'IUC code','label':'IUC'}
-                ],
-                value='IDACI Decile'
-            ),
-    
-            html.Hr(),
-            dcc.Graph(id="choropleth", 
-                style={'height': '50vh'},
-                clickData={'points': [{'location':'E01033359'}]}),
-    
-            html.Div(
-                [
-                    dcc.Dropdown(
-                        id='mbstyle',
-                        options=[{'value': x, 'label': x}
-                        for x in styles],
-                        value='open-street-map',
-                        clearable=False)
-                ],
-                style={"width": "25%"}
-            ),
-
-            html.Div([
-                dcc.Graph(
-                    id="scatter",
-
-                    ),
-
-            ])
+            )
         ],
-        style={"width":"65%"}
-    )    
-]
-)
+        style={
+            "display":"inline-block",
+            "verticalAlign": "top",
+            "width":"49%"
+        }, 
+        id='search_fields'
+        ),
+        
+        html.Div(
+            [
+                html.P('IDACI Decile Filter'),
+                dcc.RangeSlider(
+                    id='idacislider',
+                    min=1,
+                    max=10,
+                    step=1,
+                    marks={i: '{}'.format(i) for i in range(1, 11)},
+                    value=[1, 10]),
+                html.P('IUC Code Filter'),
+                dcc.RangeSlider(
+                    id='iucslider',
+                    min=1,
+                    max=10,
+                    step=1,
+                    marks={i: '{}'.format(i) for i in range(1, 11)},
+                    value=[1, 10]),
+            ],
+            
+            style={
+                "display":"inline-block",
+                "verticalAlign": "top",
+                "width":"49%"
+        },
+        id='filters'         
+        ),
+
+
+
+        html.Hr(),
+
+        html.Div([
+        dcc.Graph(id="choropleth", 
+            style={'height': '50vh'},
+            clickData={'points': [{'location':'E01033359'}]})
+        ], 
+        style={
+            "width":"49%",
+            "display":"inline-block",
+            "verticalAlign": "top"}
+        ),
+
+        html.Div([
+            dcc.Graph(
+                id="scatter",
+                ),
+        ],
+        style={
+            "width":"49%",
+            "display":"inline-block",
+            "verticalAlign": "top"}),
+
+        html.Div(
+            [
+                dcc.Dropdown(
+                    id='mbstyle',
+                    options=[{'value': x, 'label': x}
+                    for x in styles],
+                    value='open-street-map',
+                    clearable=False)
+            ],
+            style={"width": "25%",
+            "margin-top":10}
+        ),
+
+        html.Div([
+            dcc.RadioItems(
+            id='chorofilter',
+            options=[
+                {'value':'IDACI Decile', 'label':'IDACI'},
+                {'value':'IUC code','label':'IUC'}
+            ],
+            value='IDACI Decile'
+            )
+        ])
+
+
+    ],
+    style={"width":"65%"}
+)    
+
 
 @app.callback(
     Output("choropleth", "figure"),
