@@ -1,4 +1,6 @@
-# import the libraries to be used in this app
+#                               ----- setup -----
+
+# import the libraries
 import os
 import dash
 import json
@@ -10,10 +12,12 @@ import plotly.express as px
 from dash.exceptions import PreventUpdate
 import pgeocode
 
-from functions import haversine
-from functions import setcolour
+# import functions
+from functions import haversine #approximation for distance between two sets of coordinates
+from functions import setcolour #used to colour code scatter plot
 
-# import data to be used in this app (see data_cleaning_and_preparation.ipynb)
+
+# import data (see data_cleaning_and_preparation.ipynb for more information)
 wdir = os.getcwd()
 #df = pd.read_csv(wdir + '/datasets/dashboarddata.csv') #LSOA defined data 
 df = pd.read_csv(wdir + '/datasets/devdata.csv') #sample dataset for development 
@@ -26,7 +30,7 @@ for i, r in cities_df.iterrows():
     options.append({'value':city, 'label':city})
 
 #import geojson data
-#geojson = wdir + '/datasets/LSOA-2011-GeoJSON/lsoa.geojson' #LSOA boundary geometry
+#geojson = wdir + '/datasets/LSOA-2011-GeoJSON/E_lsoa.geojson' #LSOA boundary geometry
 geojson = wdir + '/datasets/LSOA-2011-GeoJSON/dev_data.geojson' #sample dataset for development
 
 with open(geojson) as lsoa_file:
@@ -42,13 +46,15 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css'] #use the c
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 
+#                               ----- app layout and dashboard components -----
+
 app.layout = html.Div(
     [
-        html.H1('DigiLocal Dashboard'),
+        html.H1('DigiLocal Dashboard'), #title
         html.Div([
             html.Div(
                 [
-                    dcc.Dropdown(
+                    dcc.Dropdown( #filter by local authority to improve performance
                         id='local_authority',
                         options=[{'value': x, 'label': x}
                         for x in df['Local Authority'].unique()],
@@ -57,20 +63,20 @@ app.layout = html.Div(
                         style={"width":"97%"}
                     )
                 ],
-                style={#"width":"49%",
+                style={
                 "margin-top":27,
                 "margin-bottom":4}
             ),
 
             html.Div(
                 [
-                    dcc.Input(
+                    dcc.Input( #search by postcode, town, or city to focus map
                         id='search',
                         placeholder="Search by Postcode, Town, or City",
                         debounce=True,
                         type='search',
                         value='',
-                        style={"width":400}
+                        style={"width":"94%"}
                     )
                 ]
             )
@@ -86,7 +92,7 @@ app.layout = html.Div(
         html.Div(
             [
                 html.P('IDACI Decile Filter'),
-                dcc.RangeSlider(
+                dcc.RangeSlider( #filter by Income Deprivation Affecting Children Index
                     id='idacislider',
                     min=1,
                     max=10,
@@ -94,7 +100,7 @@ app.layout = html.Div(
                     marks={i: '{}'.format(i) for i in range(1, 11)},
                     value=[1, 10]),
                 html.P('IUC Code Filter'),
-                dcc.RangeSlider(
+                dcc.RangeSlider( #filter by Internet User Classification
                     id='iucslider',
                     min=1,
                     max=10,
@@ -111,8 +117,6 @@ app.layout = html.Div(
         id='filters'         
         ),
 
-
-
         html.Hr(),
 
         html.Div([
@@ -128,25 +132,30 @@ app.layout = html.Div(
 
         html.Div([
             dcc.Graph(
-                id="scatter",
-                ),
+                id="scatter"
+            )
         ],
         style={
             "width":"49%",
             "display":"inline-block",
-            "verticalAlign": "top"}),
+            "verticalAlign": "top"}
+        ),
 
-        html.Div(
-            [
-                dcc.Dropdown(
-                    id='mbstyle',
-                    options=[{'value': x, 'label': x}
-                    for x in styles],
-                    value='open-street-map',
-                    clearable=False)
-            ],
-            style={"width": "25%",
-            "margin-top":10}
+        html.Div([
+            html.P('Toggle map style'),
+            dcc.Dropdown(
+                id='mbstyle',
+                options=[{'value': x, 'label': x}
+                for x in styles],
+                value='open-street-map',
+                clearable=False,
+                style={"width":"65%"})
+        ],
+        style={
+            "width": "30%",
+            "margin-top":10,
+            "display":"inline-block",
+            "verticalAlign": "top"}
         ),
 
         html.Div([
@@ -158,26 +167,46 @@ app.layout = html.Div(
             ],
             value='IDACI Decile'
             )
-        ])
+        ],
+        style={
+            "width": "10%",
+            "margin-top":10,
+            "margin-left":"11%",
+            "display":"inline-block",
+            "verticalAlign": "top"
+        }
+        ),
 
+        dcc.Store(id='filtered_by_la')
 
     ],
     style={"width":"65%"}
 )    
 
 
+
+#                               ----- callbacks that update dashboard components -----
+@app.callback(
+    Output('filtered_by_la', 'data'),
+    Input("local_authority", "value")
+    )
+
+def filter_by_la(local_authority):
+    filtered_by_la = df[df['Local Authority'] == local_authority]
+    return(filtered_by_la.to_json(orient='split'))
+
 @app.callback(
     Output("choropleth", "figure"),
-    Input("local_authority", "value"),
+    Input("filtered_by_la", "data"),
     Input("search", "value"),
     Input("mbstyle", "value"),
     Input("idacislider", "value"),
     Input("iucslider", "value"),
     Input("chorofilter", "value")
     )
-def display_choropleth(local_authority, search, mbstyle, idaci_slider_value, iuc_slider_value, chorofilter):
-    filtered_by_la = df[df['Local Authority'] == local_authority]
-    filtered_by_idaci = filtered_by_la[filtered_by_la['IDACI Decile'].between(idaci_slider_value[0], idaci_slider_value[1])]
+def display_choropleth(filtered_by_la, search, mbstyle, idaci_slider_value, iuc_slider_value, chorofilter):
+    filtered_df = pd.read_json(filtered_by_la, orient='split')
+    filtered_by_idaci = filtered_df[filtered_df['IDACI Decile'].between(idaci_slider_value[0], idaci_slider_value[1])]
     filtered_by_iuc = filtered_by_idaci[filtered_by_idaci['IUC code'].between(iuc_slider_value[0], iuc_slider_value[1])]
 
 #initialise map on the Engine Shed, Bristol. Then set centre to the co-ordinates associated with the search input 
@@ -246,22 +275,22 @@ def display_scatter(clickData):
     data = temp.loc[0:25]
 
     fig = px.scatter(data_frame=data,
-                 x='deltas',
-                 y='IDACI Decile',
-                 labels={'deltas':'Distance from selected LSOA (m)', 'IDACI Decile':'IDACI Decile'},
-                 hover_name='LSOA code',
-                 hover_data=['IDACI Decile', 'IUC code', 'IUC classification'],
-                 #color=list(map(setcolour, temp.loc[0:25]['IUC code'])),
-                 width=700
-                 
+        x='deltas',
+        y='IDACI Decile',
+        labels={'deltas':'Distance from selected LSOA (m)', 'IDACI Decile':'IDACI Decile'},
+        hover_name='LSOA code',
+        hover_data=['IDACI Decile', 'IUC code', 'IUC classification'],
+        title='IDACI & IUC for LSOA {}'.format(lsoa),
+        #color=list(map(setcolour, temp.loc[0:25]['IUC code'])),
+        width=700                 
     )
 
     fig.update_traces(mode='markers',
-                     marker=dict(
-                         size=14,
-                         color=list(map(setcolour, data['IUC code']))
-                     )
-                     )
+        marker=dict(
+            size=14,
+            color=list(map(setcolour, data['IUC code']))
+        )
+    )
     return fig
     
 if __name__ == '__main__':
