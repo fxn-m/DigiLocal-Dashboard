@@ -19,9 +19,13 @@ from functions import setcolour #used to colour code scatter plot
 
 # import data (see data_cleaning_and_preparation.ipynb for more information)
 wdir = os.getcwd()
-#df = pd.read_csv(wdir + '/datasets/dashboarddata.csv') #LSOA defined data 
-df = pd.read_csv(wdir + '/datasets/devdata.csv') #sample dataset for development 
+df = pd.read_csv(wdir + '/datasets/dashboarddata.csv') #LSOA defined data 
+#df = pd.read_csv(wdir + '/datasets/devdata.csv') #sample dataset for development 
 cities_df = pd.read_csv(wdir + '/datasets/completecitiesandpostcodes.csv') #list of cities and their co-ordinates
+path = wdir + '\datasets\LSOA_to_LA.csv'
+LSOA_to_LA = (pd.read_csv(path)).drop('Unnamed: 0', axis=1)
+#create a dataframe of unique LA codes and their Local Authority Names
+LAs = (LSOA_to_LA.drop('LSOA', axis=1)).drop_duplicates().reset_index().drop('index', axis=1)
 
 # create list of dictionaries to be used in search drop-down
 options = []
@@ -31,10 +35,14 @@ for i, r in cities_df.iterrows():
 
 #import geojson data
 #geojson = wdir + '/datasets/LSOA-2011-GeoJSON/E_lsoa.geojson' #LSOA boundary geometry
-geojson = wdir + '/datasets/LSOA-2011-GeoJSON/dev_data.geojson' #sample dataset for development
+#geojson = wdir + '/datasets/LSOA-2011-GeoJSON/dev_data.geojson' #sample dataset for development
+geojson = wdir + '/datasets/LSOA-2011-GeoJSON/performance_lsoa.geojson' #geojson for LA filter
+selected_json =  wdir + '/datasets/LSOA-2011-GeoJSON/selected.geojson' #geojson framework to fill out
 
 with open(geojson) as lsoa_file:
     geojson = json.load(lsoa_file)
+with open(selected_json) as selected_json_file:
+    selected_geojson = json.load(selected_json_file)
 
 # set variables for later use
 styles = ['open-street-map','carto-positron'] #mapbox options
@@ -177,7 +185,9 @@ app.layout = html.Div(
         }
         ),
 
-        dcc.Store(id='filtered_by_la')
+        dcc.Store(id='filtered_by_la'),
+
+        dcc.Store(id='selected_geojson')
 
     ],
     style={"width":"65%"}
@@ -196,15 +206,31 @@ def filter_by_la(local_authority):
     return(filtered_by_la.to_json(orient='split'))
 
 @app.callback(
+    Output('selected_geojson', 'data'),
+    Input("local_authority", "value")
+    )
+
+def filter_json_by_la(la):
+    #extract code from LA to LSOA dataset
+    code=LAs[LAs['Local Authority']==la]['LA code'].values[0]
+
+    for LA in geojson['features']:
+        if LA['properties']['LA code'] == code:
+            features=LA['features']
+    selected_geojson['features']=features
+    return(selected_json.to_json(orient='split'))
+
+@app.callback(
     Output("choropleth", "figure"),
     Input("filtered_by_la", "data"),
     Input("search", "value"),
     Input("mbstyle", "value"),
     Input("idacislider", "value"),
     Input("iucslider", "value"),
-    Input("chorofilter", "value")
+    Input("chorofilter", "value"),
+    Input("selected_geojson", "data")
     )
-def display_choropleth(filtered_by_la, search, mbstyle, idaci_slider_value, iuc_slider_value, chorofilter):
+def display_choropleth(filtered_by_la, search, mbstyle, idaci_slider_value, iuc_slider_value, chorofilter, selectedgeojson):
     filtered_df = pd.read_json(filtered_by_la, orient='split')
     filtered_by_idaci = filtered_df[filtered_df['IDACI Decile'].between(idaci_slider_value[0], idaci_slider_value[1])]
     filtered_by_iuc = filtered_by_idaci[filtered_by_idaci['IUC code'].between(iuc_slider_value[0], iuc_slider_value[1])]
@@ -234,7 +260,7 @@ def display_choropleth(filtered_by_la, search, mbstyle, idaci_slider_value, iuc_
 #create the map
     fig = px.choropleth_mapbox(
         filtered_by_iuc, 
-        geojson=geojson, 
+        geojson=selectedgeojson, 
         color=chorofilter, 
         color_continuous_scale="Viridis",
         locations="LSOA code", 
